@@ -1,101 +1,129 @@
-## About
+# uTransmission
 
-Transmission is a fast, easy, and free BitTorrent client. It comes in several flavors:
-  * A native macOS GUI application
-  * GTK+ and Qt GUI applications for Linux, BSD, etc.
-  * A Qt-based Windows-compatible GUI application
-  * A headless daemon for servers and routers
-  * A web UI for remote controlling any of the above
-  
-Visit https://transmissionbt.com/ for more information.
+A fork of [Transmission](https://github.com/transmission/transmission) that rebuilds
+the macOS client around a single window: a sidebar for filters and tags, and the
+torrent inspector docked inside the window instead of floating in one of its own.
 
-## Documentation
+Everything else is upstream Transmission. The BitTorrent engine, the Qt and GTK
+clients, the daemon and the web UI are untouched — this fork only changes
+`macosx/`, plus seventeen lines in `libtransmission/` that expose a mode the core
+already had.
 
-[Transmission's documentation](docs/README.md) is currently out-of-date, but the team has recently begun a new project to update it and is looking for volunteers. If you're interested, please feel free to submit pull requests!
+## Why
 
-## Command line interface notes
+Transmission's macOS client keeps navigation in a filter bar and shows torrent
+details in a separate floating window. That works, but it means two windows to
+arrange and a filter bar that can only show one dimension at a time.
 
-Transmission is fully supported in transmission-remote, the preferred cli client.
+uTransmission moves both into the main window:
 
-Three standalone tools to examine, create, and edit .torrent files exist: transmission-show, transmission-create, and transmission-edit, respectively.
+- **Sidebar** — transfer filters (all, active, downloading, seeding, paused, error)
+  with live counts, and all tags including "no tag", in one `NSOutlineView`. Selection
+  is stored through the same `Filter` and `FilterGroup` defaults the filter bar used,
+  so nothing new is persisted and nothing is lost when you switch back.
+- **Docked inspector** — the same six tabs (general info, activity, trackers, peers,
+  files, options), sized to the height its content actually needs rather than the
+  full window, and collapsible from the toolbar.
+- **Sequential download** — a per-torrent checkbox and a context menu command with
+  mixed-state handling for multiple selections.
 
-Prior to development of transmission-remote, the standalone client transmission-cli was created. Limited to a single torrent at a time, transmission-cli is deprecated and exists primarily to support older hardware dependent upon it. In almost all instances, transmission-remote should be used instead.
+## What changed, precisely
 
-Different distributions may choose to package any or all of these tools in one or more separate packages.
+If you are auditing this fork before running it, that is the right instinct for a
+BitTorrent client, and the diff is deliberately small enough to read.
+
+| Area | Files |
+| --- | --- |
+| Sidebar | `macosx/SidebarController.{h,mm}` (new), wiring in `macosx/Controller.mm` |
+| Docked inspector | `macosx/Controller.mm`, `macosx/InfoWindowController.mm`, `macosx/Info{Activity,Options}ViewController.{h,mm}` |
+| Sequential download | `libtransmission/{torrent.cc,transmission.h}`, `macosx/Torrent.{h,mm}`, `macosx/InfoOptionsViewController.mm` |
+| Crash fixes found along the way | `macosx/Controller.mm`, `macosx/TorrentTableView.mm` |
+| Name and icon | `macosx/CMakeLists.txt`, `macosx/Info.plist.in`, `macosx/Images/Images.xcassets` |
+
+Two points worth stating plainly:
+
+**Sequential download is not new engine code.** libtransmission already implements
+it — the piece picker honours it in `peer-mgr-wishlist.cc`, the value is written to
+the resume file, and the RPC field `sequential-download` exists. The only additions
+are `tr_torrentIsSequentialDownload` and `tr_torrentSetSequentialDownload`, thin
+wrappers so an Objective-C client can reach it. No behaviour changes for anyone who
+does not turn it on.
+
+**Two crash fixes are not cosmetic.** Removing a torrent while the table was
+animating could free a `Torrent` while `NSTableView` was still reading it, so removal
+is now deferred to the animation completion and flushed on termination. Separately, a
+reload scheduled with `afterDelay:0` could run against indexes that no longer existed,
+so index sets are clamped to the current row count. Both are described in
+[`docs/uTransmission-changes.md`](docs/uTransmission-changes.md), including the honest
+note that the second one guards the symptom rather than the cause.
+
+`CFBundleIdentifier` is still `org.m0k.transmission`. That is intentional: it is what
+settings and the torrent list are keyed on, so uTransmission reads an existing
+Transmission profile instead of stranding it. The flip side is that the two apps share
+one profile and should not run at the same time.
 
 ## Building
 
-Transmission has an Xcode project file (Transmission.xcodeproj) for building in Xcode.
+Requires Xcode and CMake. Clone with submodules — the build will not configure without
+them:
 
-For a more detailed description, and dependencies, visit [How to Build Transmission](docs/Building-Transmission.md) in docs
+```sh
+git clone --recurse-submodules https://github.com/whiterabbit74/uTransmission.git
+cd uTransmission
 
-### Building a Transmission release from the command line
+cmake -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DENABLE_MAC=ON \
+    -DENABLE_QT=OFF -DENABLE_GTK=OFF -DENABLE_TESTS=OFF -DENABLE_CLI=OFF \
+    -DENABLE_DAEMON=OFF -DENABLE_UTILS=OFF
+cmake --build build -j 8
 
-```bash
-$ tar xf transmission-4.1.0.tar.xz
-$ cd transmission-4.1.0
-# Use -DCMAKE_BUILD_TYPE=RelWithDebInfo to build optimized binary with debug information. (preferred)
-# Use -DCMAKE_BUILD_TYPE=Release to build full optimized binary.
-$ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-$ cd build
-$ cmake --build .
-$ sudo cmake --install .
+open build/macosx/uTransmission.app
 ```
 
-### Building Transmission from the nightly builds
+There are no signed builds. The binary is ad-hoc signed by the build itself, so
+distributing the `.app` to another Mac will trip Gatekeeper; build it yourself.
 
-Download a tarball from https://build.transmissionbt.com/job/trunk-linux/ and follow the steps from the previous section.
+The other Transmission targets still build from this tree unchanged — drop the
+`-DENABLE_*=OFF` flags to get the daemon, CLI tools, or the Qt and GTK clients.
 
-If you're new to building programs from source code, this is typically easier than building from Git.
+## Status
 
-### Building Transmission from Git (first time)
+Working and in daily use, with rough edges recorded rather than hidden:
 
-```bash
-$ git clone --recurse-submodules https://github.com/transmission/transmission Transmission
-$ cd Transmission
-# Use -DCMAKE_BUILD_TYPE=RelWithDebInfo to build optimized binary with debug information. (preferred)
-# Use -DCMAKE_BUILD_TYPE=Release to build full optimized binary.
-$ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-$ cd build
-$ cmake --build .
-$ sudo cmake --install .
+- The sidebar does not remember its width or collapsed state between launches.
+- The docked inspector borrows the main window's bottom bar and the inspector window's
+  content view by walking the view hierarchy, which is fragile if upstream reworks
+  either XIB.
+- `Download Sequentially` in the menu is not in the localization files, so non-English
+  locales show it untranslated.
+
+Bug reports about the engine, the daemon, or the other clients belong
+[upstream](https://github.com/transmission/transmission/issues) — nothing here touches
+them.
+
+## Keeping up with upstream
+
+The fork is a handful of commits on top of a known upstream commit, so tracking a new
+Transmission release is a rebase rather than a re-implementation:
+
+```sh
+git fetch upstream
+git rebase upstream/main
+./code_style.sh          # the pre-commit hook enforces clang-format
 ```
 
-### Building Transmission from Git (updating)
+[`docs/uTransmission-changes.md`](docs/uTransmission-changes.md) is the playbook for
+this: every change is listed by method name rather than line number, with the traps
+that already cost a debugging session — a duplicated SF Symbol declaration that blanks
+every icon in a menu, an `NSSegmentedControl` selector that crashes at launch, and a
+few more.
 
-```bash
-$ cd Transmission/build
-$ cmake --build . -t clean
-$ git submodule foreach --recursive git clean -xfd
-$ git pull --rebase --prune
-$ git submodule update --init --recursive
-$ cmake --build .
-$ sudo cmake --install .
-```
+Base upstream commit: [`a89f4bd5b`](https://github.com/transmission/transmission/commit/a89f4bd5bd5f0ccc1ba16732d1c8cd893036e6f2)
+(10 Feb 2026).
 
-## Contributing
+## License
 
-### Code Style
+Unchanged from upstream: GPLv2, GPLv3, or any later version, with third-party
+components under their own terms. See [`COPYING`](COPYING) and [`licenses/`](licenses).
 
-You would want to setup your editor to make use of the .clang-format file located in the root of this repository and the eslint/prettier rules in web/package.json.
-
-If for some reason you are unwilling or unable to do so, there is a shell script which you can use: `./code_style.sh`
-
-### Translations
-
-See [language translations](docs/Translating.md).
-
-## Sponsors
-
-<table>
- <tbody>
-  <tr>
-   <td align="center"><img alt="[MacStadium]" src="https://uploads-ssl.webflow.com/5ac3c046c82724970fc60918/5c019d917bba312af7553b49_MacStadium-developerlogo.png" height="30"/></td>
-   <td>macOS CI builds are running on a M1 Mac Mini provided by <a href="https://www.macstadium.com/company/opensource">MacStadium</a></td>
-  </tr>
-  <tr>
-   <td align="center"><img alt="[SignPath]" src="https://avatars.githubusercontent.com/u/34448643" height="30"/></td>
-   <td>Free code signing on Windows provided by <a href="https://signpath.io/?utm_source=foundation&utm_medium=github&utm_campaign=transmission">SignPath.io</a>, certificate by <a href="https://signpath.org/?utm_source=foundation&utm_medium=github&utm_campaign=transmission">SignPath Foundation</a></td>
-  </tr>
- </tbody>
-</table>
+Transmission is the work of the Transmission project and its contributors. This fork
+claims no affiliation with or endorsement by them.
