@@ -85,7 +85,7 @@
 	<key>IncompleteDownloadFolder</key>
 	<string>~/Downloads</string>
 	<key>InfoVisible</key>
-	<false/>
+	<true/>
 	<key>InspectorSelected</key>
 	<string>Info</string>
 	<key>LocalPeerDiscoveryGlobal</key>

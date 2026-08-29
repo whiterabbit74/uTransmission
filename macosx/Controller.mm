@@ -126,6 +126,9 @@ static CGFloat const kStatusBarHeight = 24.0;
 static CGFloat const kFilterBarHeight = 24.0;
 static CGFloat const kBottomBarHeight = 24.0;
 
+static CGFloat const kInspectorMinHeight = 200.0;
+static CGFloat const kInspectorMaxHeightFraction = 0.5;
+
 static NSTimeInterval const kUpdateUISeconds = 1.0;
 
 static NSString* const kTransferPlist = @"Transfers.plist";
@@ -324,6 +327,7 @@ static void removeKeRangerRansomware()
 @property(nonatomic) NSSplitViewController* fSplitViewController;
 @property(nonatomic) NSSplitViewItem* fInspectorSplitItem;
 @property(nonatomic) NSSplitViewItem* fSidebarSplitItem;
+@property(nonatomic) NSSplitView* fRightSplitView;
 
 @property(nonatomic) QLPreviewPanel* fPreviewPanel;
 @property(nonatomic) BOOL fQuitting;
@@ -5217,10 +5221,35 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
         if (!self.fInspectorSplitItem.collapsed)
         {
             [self.fInfoController updateInfoStats];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self clampInspectorHeight];
+            });
         }
     }
 
     [self.fWindow.toolbar validateVisibleItems];
+}
+
+/// Sizes the inspector pane to the height its content actually needs, leaving a
+/// height the user dragged to by hand alone as long as it stays within bounds.
+- (void)clampInspectorHeight
+{
+    NSView* const inspectorView = self.fInspectorSplitItem.viewController.view;
+    CGFloat const availableHeight = NSHeight(self.fRightSplitView.frame);
+    if (self.fInspectorSplitItem.collapsed || availableHeight < 1.0)
+    {
+        return;
+    }
+
+    CGFloat const maxHeight = availableHeight * kInspectorMaxHeightFraction;
+    CGFloat const currentHeight = NSHeight(inspectorView.frame);
+    if (currentHeight >= kInspectorMinHeight && currentHeight <= maxHeight)
+    {
+        return;
+    }
+
+    CGFloat const height = MIN(MAX(inspectorView.fittingSize.height, kInspectorMinHeight), maxHeight);
+    [self.fRightSplitView setPosition:availableHeight - height ofDividerAtIndex:0];
 }
 
 - (void)updateMainWindow
@@ -5272,8 +5301,7 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
         inspectorViewController.view = inspectorView;
 
         self.fInspectorSplitItem = [NSSplitViewItem splitViewItemWithViewController:inspectorViewController];
-        self.fInspectorSplitItem.minimumThickness = 200.0;
-        self.fInspectorSplitItem.preferredThicknessFraction = 0.35;
+        self.fInspectorSplitItem.minimumThickness = kInspectorMinHeight;
         self.fInspectorSplitItem.collapsed = ![self.fDefaults boolForKey:@"InfoVisible"];
         self.fInspectorSplitItem.holdingPriority = NSLayoutPriorityDefaultLow + 1;
         [rightSplitViewController addSplitViewItem:self.fInspectorSplitItem];
@@ -5298,6 +5326,13 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
 
         // Set the root vertical split as the primary content of the window
         self.fWindow.contentViewController = rootVerticalSplit;
+
+        // The split view has no frame until the window has laid out, so the
+        // inspector's height has to be applied on the next turn of the run loop.
+        self.fRightSplitView = rightSplitViewController.splitView;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self clampInspectorHeight];
+        });
 
         // Ensure the torrent list is populated and displayed
         [self applyFilter];
