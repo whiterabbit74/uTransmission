@@ -474,6 +474,7 @@
 		ED91F3612CBDA72C008388AA /* crc32c_arm64_check.h in Headers */ = {isa = PBXBuildFile; fileRef = ED91F0212CBDA72C008388AA /* crc32c_arm64_check.h */; };
 		ED91F3962CBDAAED008388AA /* libcrc32c.a in Frameworks */ = {isa = PBXBuildFile; fileRef = ED91F00C2CBDA5D3008388AA /* libcrc32c.a */; };
 		ED9862972B979AA2002F3035 /* Utils.mm in Sources */ = {isa = PBXBuildFile; fileRef = ED9862962B979AA2002F3035 /* Utils.mm */; };
+		EDA5B1E02C9A4F0100C0DE51 /* SidebarController.mm in Sources */ = {isa = PBXBuildFile; fileRef = EDA5B1DF2C9A4F0100C0DE51 /* SidebarController.mm */; };
 		EDBA61FF2D4180D5001470F8 /* torrent-queue.h in Headers */ = {isa = PBXBuildFile; fileRef = EDBA61FD2D4180D5001470F8 /* torrent-queue.h */; };
 		EDBA62002D4180D5001470F8 /* torrent-queue.cc in Sources */ = {isa = PBXBuildFile; fileRef = EDBA61FE2D4180D5001470F8 /* torrent-queue.cc */; };
 		EDBAAC8C29E486BC00D9495F /* ip-cache.h in Headers */ = {isa = PBXBuildFile; fileRef = EDBAAC8B29E486BC00D9495F /* ip-cache.h */; };
@@ -1468,6 +1469,8 @@
 		ED91F0322CBDA72C008388AA /* crc32c_sse42_check.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = crc32c_sse42_check.h; sourceTree = "<group>"; };
 		ED9862952B979AA2002F3035 /* Utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Utils.h; sourceTree = "<group>"; };
 		ED9862962B979AA2002F3035 /* Utils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = Utils.mm; sourceTree = "<group>"; };
+		EDA5B1DE2C9A4F0100C0DE51 /* SidebarController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SidebarController.h; sourceTree = "<group>"; };
+		EDA5B1DF2C9A4F0100C0DE51 /* SidebarController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SidebarController.mm; sourceTree = "<group>"; };
 		EDBA61FD2D4180D5001470F8 /* torrent-queue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "torrent-queue.h"; sourceTree = "<group>"; };
 		EDBA61FE2D4180D5001470F8 /* torrent-queue.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "torrent-queue.cc"; sourceTree = "<group>"; };
 		EDBAAC8B29E486BC00D9495F /* ip-cache.h */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.h; fileEncoding = 4; path = "ip-cache.h"; sourceTree = "<group>"; };
@@ -1757,6 +1760,8 @@
 				A2E57ABA1310822C00A7DAB1 /* StatusBarController.mm */,
 				A2E57BA513109E6B00A7DAB1 /* FilterBarController.h */,
 				A2E57BA613109E6B00A7DAB1 /* FilterBarController.mm */,
+				EDA5B1DE2C9A4F0100C0DE51 /* SidebarController.h */,
+				EDA5B1DF2C9A4F0100C0DE51 /* SidebarController.mm */,
 				A2ED7D8D0CEF431B00970975 /* FilterButton.h */,
 				A2ED7D8E0CEF431B00970975 /* FilterButton.mm */,
 				A2C89D5F0CFCBF57004CC2BC /* ButtonToolbarItem.mm */,
@@ -3601,6 +3606,7 @@
 				A2F7CF5F13035FFD0016FF10 /* URLSheetWindowController.mm in Sources */,
 				A2E57ABB1310822C00A7DAB1 /* StatusBarController.mm in Sources */,
 				A2E57BA713109E6B00A7DAB1 /* FilterBarController.mm in Sources */,
+				EDA5B1E02C9A4F0100C0DE51 /* SidebarController.mm in Sources */,
 				A2B5B4E91880665E0071A66A /* ShareTorrentFileHelper.mm in Sources */,
 				A22BAE281388040500FB022F /* NSMutableArrayAdditions.mm in Sources */,
 				A2966E8713DAF74C007B52DF /* GlobalOptionsPopoverViewController.mm in Sources */,
