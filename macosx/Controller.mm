@@ -4478,19 +4478,12 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     else if ([ident isEqualToString:ToolbarItemIdentifierSidebar])
     {
         ButtonToolbarItem* item = [self standardToolbarButtonWithIdentifier:ident];
-        ((NSButtonCell*)((NSButton*)item.view).cell).showsStateBy = NSContentsCellMask;
+        ((NSButtonCell*)((NSButton*)item.view).cell).showsStateBy = NSContentsCellMask; //blue when enabled
 
         item.label = NSLocalizedString(@"Sidebar", "Sidebar toolbar item -> label");
         item.paletteLabel = NSLocalizedString(@"Toggle Sidebar", "Sidebar toolbar item -> palette label");
         item.toolTip = NSLocalizedString(@"Toggle the sidebar", "Sidebar toolbar item -> tooltip");
-        NSImage* sidebarImage = [NSImage imageWithSystemSymbolName:@"sidebar.leading" accessibilityDescription:nil];
-        if (@available(macOS 12.0, *))
-        {
-            NSImageSymbolConfiguration* config = [NSImageSymbolConfiguration configurationWithHierarchicalColor:[NSColor whiteColor]];
-            sidebarImage = [sidebarImage imageWithSymbolConfiguration:config];
-        }
-        item.image = sidebarImage;
-        ((NSButton*)item.view).contentTintColor = [NSColor whiteColor];
+        item.image = [NSImage imageWithSystemSymbolName:@"sidebar.leading" accessibilityDescription:nil];
         item.target = self;
         item.action = @selector(toggleSidebar:);
 
