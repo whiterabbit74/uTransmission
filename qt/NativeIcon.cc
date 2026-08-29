@@ -225,6 +225,20 @@ struct Info
         fallback = QStyle::SP_DirOpenIcon;
         break;
 
+    case Type::ToggleSidebar:
+        sf_symbol_name = "sidebar.left";
+        segoe_codepoint = 0xE700U; // GlobalNavigationButton
+        xdg_icon_name = "sidebar-show";
+        fallback = QStyle::SP_FileDialogDetailedView;
+        break;
+
+    case Type::SequentialDownload:
+        sf_symbol_name = "list.number";
+        segoe_codepoint = 0xE8CBU; // Sort
+        xdg_icon_name = "view-sort-ascending";
+        fallback = QStyle::SP_FileDialogListView;
+        break;
+
     case Type::StartTorrent:
         sf_symbol_name = "play";
         segoe_codepoint = 0xE768U; // Play

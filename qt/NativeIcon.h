@@ -23,6 +23,7 @@ enum class Type
     CreateNewTorrent,
     OpenTorrentDetails,
     OpenTorrentLocalFolder,
+    ToggleSidebar,
 
     StartTorrent,
     StartTorrentNow,
@@ -32,6 +33,7 @@ enum class Type
     SetTorrentLocation,
     CopyMagnetLinkToClipboard,
     VerifyTorrent,
+    SequentialDownload,
 
     TorrentErrorEmblem,
 

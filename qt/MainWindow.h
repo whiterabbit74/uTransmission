@@ -178,6 +178,7 @@ private:
     QWidget* details_pane_ = {};
     QAction* alt_speed_action_ = {};
     QAction* sequential_action_ = {};
+    QAction* sidebar_action_ = {};
     QString error_message_;
     bool auto_add_clipboard_links_ = {};
     QStringList clipboard_processed_keys_ = {};

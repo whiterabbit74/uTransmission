@@ -258,11 +258,13 @@ MainWindow::MainWindow(Session& session, Prefs& prefs, TorrentModel& model, bool
     connect(sequential_action_, &QAction::triggered, this, &MainWindow::setSequentialDownload);
     ui_.menuTorrent->insertAction(ui_.action_SetLocation, sequential_action_);
 
-    auto* const sidebar_action = new QAction{ tr("&Sidebar"), this };
-    sidebar_action->setCheckable(true);
-    sidebar_action->setChecked(true);
-    connect(sidebar_action, &QAction::toggled, sidebar, &QWidget::setVisible);
-    ui_.menu_View->insertAction(ui_.action_Filterbar, sidebar_action);
+    sidebar_action_ = new QAction{ tr("&Sidebar"), this };
+    sidebar_action_->setCheckable(true);
+    sidebar_action_->setChecked(true);
+    connect(sidebar_action_, &QAction::toggled, sidebar, &QWidget::setVisible);
+    ui_.menu_View->insertAction(ui_.action_Filterbar, sidebar_action_);
+    ui_.toolBar->insertAction(ui_.action_OpenFile, sidebar_action_);
+    ui_.toolBar->insertSeparator(ui_.action_OpenFile);
 
     ui_.action_Properties->setChecked(true);
 
@@ -970,6 +972,8 @@ void MainWindow::refreshIcons()
     set_icon(ui_.action_StartNow, icons::Type::StartTorrentNow);
     set_icon(ui_.action_Statistics, icons::Type::Statistics);
     set_icon(ui_.action_Verify, icons::Type::VerifyTorrent);
+    set_icon(sequential_action_, icons::Type::SequentialDownload);
+    set_icon(sidebar_action_, icons::Type::ToggleSidebar);
 
     // network icons
 
