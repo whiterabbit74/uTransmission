@@ -59,9 +59,10 @@ else()
     set(TR_OPENSSL_SSL_NAME "ssleay32.dll")
 endif()
 
-file(
-    COPY "${SOURCE_ICONS_DIR}/transmission.ico"
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+configure_file(
+    "${SOURCE_ICONS_DIR}/uTransmission.ico"
+    "${CMAKE_CURRENT_BINARY_DIR}/transmission.ico"
+    COPYONLY)
 
 set(WEBSRCDIR "${CMAKE_INSTALL_PREFIX}/share/transmission/public_html")
 set(TRQMSRCDIR "${CMAKE_INSTALL_PREFIX}/share/transmission/translations")
