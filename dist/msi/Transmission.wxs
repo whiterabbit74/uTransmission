@@ -14,7 +14,7 @@
   <?endif ?>
 
   <Product Name="$(var.ProductName)" Id="*" UpgradeCode="1FB3C295-9BD4-4248-8C8B-B85CD11FE7C4" Language="1033" Codepage="1252" Version="$(var.TrVersionMsi)" Manufacturer="Transmission Project">
-    <Package Id="*" Keywords="Installer" Description="Transmission $(var.TrVersion) Installer" Comments="A Fast, Easy, and Free BitTorrent Client" Manufacturer="Transmission Project" InstallerVersion="500" InstallScope="perMachine" Languages="1033" Compressed="yes" SummaryCodepage="1252" />
+    <Package Id="*" Keywords="Installer" Description="uTransmission $(var.TrVersion) Installer" Comments="A Fast, Easy, and Free BitTorrent Client" Manufacturer="Transmission Project" InstallerVersion="500" InstallScope="perMachine" Languages="1033" Compressed="yes" SummaryCodepage="1252" />
     <MajorUpgrade DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." AllowSameVersionUpgrades="yes" />
 
     <?if $(var.QtMajorVer) = 5 ?>
@@ -73,20 +73,20 @@
       <Directory Id="DesktopFolder" Name="Desktop" />
     </Directory>
 
-    <Feature Id="CompleteInstall" Title="Transmission" Level="1" AllowAdvertise="no" Display="expand" ConfigurableDirectory="INSTALLDIR">
+    <Feature Id="CompleteInstall" Title="uTransmission" Level="1" AllowAdvertise="no" Display="expand" ConfigurableDirectory="INSTALLDIR">
       <Feature Id="CommonLibs" Level="1" AllowAdvertise="no" Display="hidden">
         <ComponentGroupRef Id="CommonLibsComponents" />
       </Feature>
-      <Feature Id="QtClient" Title="Qt client" Description="Native GUI application with local and remote sessions support." Level="1" AllowAdvertise="no">
+      <Feature Id="QtClient" Title="Desktop application" Description="The uTransmission window itself, with local and remote sessions support." Level="1" AllowAdvertise="no">
         <ComponentGroupRef Id="QtClientComponents" />
       </Feature>
-      <Feature Id="Daemon" Title="Daemon" Description="Background service accessible with Qt client, web UI, or remote CLI tool." Level="2" AllowAdvertise="no">
+      <Feature Id="Daemon" Title="Daemon" Description="Background service accessible with the desktop app, web UI, or remote CLI tool." Level="2" AllowAdvertise="no">
         <ComponentGroupRef Id="DaemonComponents" />
       </Feature>
       <Feature Id="CmdTools" Title="Command-line tools" Description="Various command-line tools useful for scripting (remote, create, edit, show)." Level="2" AllowAdvertise="no">
         <ComponentGroupRef Id="CliToolsComponents" />
       </Feature>
-      <Feature Id="WebUi" Title="Web interface" Description="Web UI to access Qt client or daemon via web browser." Level="2" AllowAdvertise="no">
+      <Feature Id="WebUi" Title="Web interface" Description="Web UI to access the desktop app or daemon via web browser." Level="2" AllowAdvertise="no">
         <ComponentGroupRef Id="WebUiComponents" />
       </Feature>
     </Feature>
