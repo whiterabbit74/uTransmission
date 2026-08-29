@@ -80,6 +80,8 @@ target_sources(${TR_NAME}-qt-lib
         Session.h
         SessionDialog.cc
         SessionDialog.h
+        Sidebar.cc
+        Sidebar.h
         Speed.h
         SqueezeLabel.cc
         SqueezeLabel.h
@@ -253,10 +255,10 @@ if(MSVC)
 endif()
 
 tr_win32_app_info(${TR_NAME}-qt
-    "Transmission Qt Client"
+    "uTransmission Qt Client"
     "${TR_NAME}-qt"
     "${TR_NAME}-qt.exe"
-    "${SOURCE_ICONS_DIR}/${TR_NAME}.ico")
+    "${SOURCE_ICONS_DIR}/uTransmission.ico")
 
 install(
     TARGETS ${TR_NAME}-qt

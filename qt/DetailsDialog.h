@@ -88,6 +88,7 @@ private slots:
     // Options tab
     void onBandwidthPriorityChanged(int);
     void onHonorsSessionLimitsToggled(bool);
+    void onSequentialDownloadToggled(bool);
     void onDownloadLimitedToggled(bool);
     void onSpinBoxEditingFinished();
     void onUploadLimitedToggled(bool);

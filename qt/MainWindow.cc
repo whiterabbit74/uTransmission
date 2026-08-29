@@ -17,6 +17,9 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QProxyStyle>
+#include <QScrollArea>
+#include <QSplitter>
+#include <QTabWidget>
 #include <QtGui>
 
 #include <libtransmission/transmission.h>
@@ -38,6 +41,7 @@
 #include "RelocateDialog.h"
 #include "Session.h"
 #include "SessionDialog.h"
+#include "Sidebar.h"
 #include "Speed.h"
 #include "StatsDialog.h"
 #include "TorrentDelegate.h"
@@ -129,9 +133,10 @@ MainWindow::MainWindow(Session& session, Prefs& prefs, TorrentModel& model, bool
     connect(ui_.action_OpenFolder, &QAction::triggered, this, &MainWindow::openFolder);
     connect(ui_.action_CopyMagnetToClipboard, &QAction::triggered, this, &MainWindow::copyMagnetLinkToClipboard);
     connect(ui_.action_SetLocation, &QAction::triggered, this, &MainWindow::setLocation);
-    connect(ui_.action_Properties, &QAction::triggered, this, &MainWindow::openProperties);
+    ui_.action_Properties->setCheckable(true);
+    connect(ui_.action_Properties, &QAction::toggled, this, &MainWindow::setDetailsVisible);
     connect(ui_.action_SessionDialog, &QAction::triggered, this, &MainWindow::openSession);
-    connect(ui_.listView, &QAbstractItemView::activated, ui_.action_Properties, &QAction::trigger);
+    connect(ui_.listView, &QAbstractItemView::activated, this, [this]() { ui_.action_Properties->setChecked(true); });
     connect(ui_.action_SelectAll, &QAction::triggered, ui_.listView, &QAbstractItemView::selectAll);
     connect(ui_.action_DeselectAll, &QAction::triggered, ui_.listView, &QAbstractItemView::clearSelection);
     connect(ui_.action_Quit, &QAction::triggered, qApp, &QCoreApplication::quit);
@@ -213,6 +218,53 @@ MainWindow::MainWindow(Session& session, Prefs& prefs, TorrentModel& model, bool
     auto* filter_bar = new FilterBar{ prefs_, model_, filter_model_ };
     ui_.verticalLayout->insertWidget(0, filter_bar);
     filter_bar_ = filter_bar;
+
+    auto* const sidebar = new Sidebar{ prefs_, model_, filter_model_ };
+
+    auto* const details = new DetailsDialog{ session_, prefs_, model_, this };
+    details_dialog_ = details;
+    // the inspector's own minimum size is taller than a docked pane should be,
+    // so let it scroll instead of forcing the torrent list out of the window
+    auto* const details_scroll = new QScrollArea;
+    details_scroll->setWidget(details->findChild<QTabWidget*>(QStringLiteral("tabs")));
+    details_scroll->setWidgetResizable(true);
+    details_scroll->setFrameShape(QFrame::NoFrame);
+    details_scroll->setMinimumHeight(120);
+    details_pane_ = details_scroll;
+
+    ui_.listView->setMinimumHeight(120);
+
+    auto* const list_and_details = new QSplitter{ Qt::Vertical };
+    auto* const sidebar_and_details = new QSplitter{ Qt::Horizontal };
+
+    // the list view has to leave the layout before it can be moved into a splitter
+    delete ui_.verticalLayout->replaceWidget(ui_.listView, sidebar_and_details);
+
+    list_and_details->addWidget(ui_.listView);
+    list_and_details->addWidget(details_pane_);
+    list_and_details->setStretchFactor(0, 1);
+    list_and_details->setStretchFactor(1, 0);
+    list_and_details->setSizes({ 420, 300 });
+
+    sidebar_and_details->addWidget(sidebar);
+    sidebar_and_details->addWidget(list_and_details);
+    sidebar_and_details->setStretchFactor(0, 0);
+    sidebar_and_details->setStretchFactor(1, 1);
+    sidebar_and_details->setSizes({ 180, 620 });
+    sidebar_and_details->setChildrenCollapsible(false);
+
+    sequential_action_ = new QAction{ tr("Download Se&quentially"), this };
+    sequential_action_->setCheckable(true);
+    connect(sequential_action_, &QAction::triggered, this, &MainWindow::setSequentialDownload);
+    ui_.menuTorrent->insertAction(ui_.action_SetLocation, sequential_action_);
+
+    auto* const sidebar_action = new QAction{ tr("&Sidebar"), this };
+    sidebar_action->setCheckable(true);
+    sidebar_action->setChecked(true);
+    connect(sidebar_action, &QAction::toggled, sidebar, &QWidget::setVisible);
+    ui_.menu_View->insertAction(ui_.action_Filterbar, sidebar_action);
+
+    ui_.action_Properties->setChecked(true);
 
     auto refresh_header_soon = [this]()
     {
@@ -486,10 +538,22 @@ void MainWindow::openPreferences()
     Utils::openDialog(prefs_dialog_, session_, prefs_, this);
 }
 
-void MainWindow::openProperties()
+void MainWindow::setSequentialDownload(bool val)
 {
-    Utils::openDialog(details_dialog_, session_, prefs_, model_, this);
-    details_dialog_->setIds(getSelectedTorrents());
+    session_.torrentSet(getSelectedTorrents(), TR_KEY_sequential_download, val);
+}
+
+void MainWindow::setDetailsVisible(bool visible)
+{
+    if (details_pane_ != nullptr)
+    {
+        details_pane_->setVisible(visible);
+    }
+
+    if (visible && !details_dialog_.isNull())
+    {
+        details_dialog_->setIds(getSelectedTorrents());
+    }
 }
 
 void MainWindow::setLocation()
@@ -710,7 +774,7 @@ void MainWindow::onRefreshTimer()
 
 void MainWindow::refreshTitle()
 {
-    QString title(QStringLiteral("Transmission"));
+    QString title(QStringLiteral("uTransmission"));
 
     if (auto const url = QUrl{ session_.getRemoteUrl() }; !url.isEmpty())
     {
@@ -791,6 +855,7 @@ void MainWindow::refreshActionSensitivity()
     auto selected_and_can_announce = int{};
     auto selected_and_paused = int{};
     auto selected_and_queued = int{};
+    auto selected_and_sequential = int{};
     auto selected_with_metadata = int{};
     auto const now = time(nullptr);
     for (auto const& row : selection_model->selectedRows())
@@ -818,6 +883,11 @@ void MainWindow::refreshActionSensitivity()
             ++selected_with_metadata;
         }
 
+        if (tor->isSequentialDownload())
+        {
+            ++selected_and_sequential;
+        }
+
         if (tor->canManualAnnounceAt(now))
         {
             ++selected_and_can_announce;
@@ -840,6 +910,9 @@ void MainWindow::refreshActionSensitivity()
     ui_.action_Remove->setEnabled(have_selection);
     ui_.action_Delete->setEnabled(have_selection);
     ui_.action_Properties->setEnabled(have_selection);
+
+    sequential_action_->setEnabled(have_selection);
+    sequential_action_->setChecked(selected > 0 && selected_and_sequential == selected);
     ui_.action_DeselectAll->setEnabled(have_selection);
     ui_.action_SetLocation->setEnabled(have_selection);
 

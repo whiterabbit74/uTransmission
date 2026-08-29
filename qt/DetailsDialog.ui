@@ -770,6 +770,13 @@
           <item row="3" column="1">
            <widget class="QComboBox" name="bandwidthPriorityCombo"/>
           </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QCheckBox" name="sequentialDownloadCheck">
+            <property name="text">
+             <string>Do&amp;wnload pieces sequentially</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

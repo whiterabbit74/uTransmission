@@ -103,7 +103,7 @@ void initUnits()
     }
 
     // if that fails, use our own as the fallback
-    return QIcon{ QStringLiteral(":/icons/transmission.svg") };
+    return QIcon{ QStringLiteral(":/icons/uTransmission.png") };
 }
 
 #if QT_CONFIG(accessibility)

@@ -439,6 +439,11 @@ public:
         return honors_session_limits_;
     }
 
+    [[nodiscard]] constexpr auto isSequentialDownload() const noexcept
+    {
+        return sequential_download_;
+    }
+
     [[nodiscard]] constexpr auto peerLimit() const noexcept
     {
         return peer_limit_;
@@ -602,6 +607,7 @@ public:
         SEED_IDLE_MODE,
         SEED_RATIO_LIMIT,
         SEED_RATIO_MODE,
+        SEQUENTIAL_DOWNLOAD,
         SIZE_WHEN_DONE,
         START_DATE,
         STATUS,
@@ -628,6 +634,7 @@ private:
     bool is_finished_ = {};
     bool is_private_ = {};
     bool is_stalled_ = {};
+    bool sequential_download_ = {};
     bool upload_limited_ = {};
 
     tr_stat::Error error_ = tr_stat::Error::Ok;

@@ -1,13 +1,26 @@
 # uTransmission
 
 A fork of [Transmission](https://github.com/transmission/transmission) that rebuilds
-the macOS client around a single window: a sidebar for filters and tags, and the
+the desktop client around a single window: a sidebar for filters and tags, and the
 torrent inspector docked inside the window instead of floating in one of its own.
 
-Everything else is upstream Transmission. The BitTorrent engine, the Qt and GTK
-clients, the daemon and the web UI are untouched — this fork only changes
-`macosx/`, plus seventeen lines in `libtransmission/` that expose a mode the core
-already had.
+![The main window: sidebar, transfer list and the docked inspector](docs/images/macos-main-window.png)
+
+*Filters and tags on the left, the inspector docked along the bottom — one window
+instead of three.*
+
+![The inspector's activity tab with the piece map](docs/images/macos-inspector-activity.png)
+
+*The inspector keeps all six tabs, including the piece map, and takes only the height
+its content needs.*
+
+macOS is the primary target. The same three features — sidebar, docked inspector and
+sequential download — are also ported to the Qt client, which is what runs on Windows;
+see [`docs/uTransmission-on-Windows.md`](docs/uTransmission-on-Windows.md).
+
+Everything else is upstream Transmission. The BitTorrent engine, the GTK client, the
+daemon and the web UI are untouched, and the engine itself gains only seventeen lines
+that expose a mode the core already had.
 
 ## Why
 
@@ -39,6 +52,10 @@ BitTorrent client, and the diff is deliberately small enough to read.
 | Sequential download | `libtransmission/{torrent.cc,transmission.h}`, `macosx/Torrent.{h,mm}`, `macosx/InfoOptionsViewController.mm` |
 | Crash fixes found along the way | `macosx/Controller.mm`, `macosx/TorrentTableView.mm` |
 | Name and icon | `macosx/CMakeLists.txt`, `macosx/Info.plist.in`, `macosx/Images/Images.xcassets` |
+| Qt sidebar | `qt/Sidebar.{h,cc}` (new), wiring in `qt/MainWindow.cc` |
+| Qt docked inspector | `qt/MainWindow.{h,cc}`, `qt/DetailsDialog.cc` |
+| Qt sequential download | `qt/Torrent.{h,cc}`, `qt/Session.cc`, `qt/DetailsDialog.{h,cc,ui}`, `qt/MainWindow.cc` |
+| Qt name and icon | `qt/CMakeLists.txt`, `qt/Application.cc`, `qt/application.qrc`, `icons/uTransmission.ico` |
 
 Two points worth stating plainly:
 
@@ -95,6 +112,10 @@ Working and in daily use, with rough edges recorded rather than hidden:
   either XIB.
 - `Download Sequentially` in the menu is not in the localization files, so non-English
   locales show it untranslated.
+- The Qt sidebar filters by activity only. The Qt client has no concept of tags or
+  groups at all, so there is nothing to put in a tags section.
+- The Qt client does not remember the sidebar and inspector state or the divider
+  positions between launches either.
 
 Bug reports about the engine, the daemon, or the other clients belong
 [upstream](https://github.com/transmission/transmission/issues) — nothing here touches

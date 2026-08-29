@@ -339,7 +339,7 @@ void DetailsDialog::refreshPref(int key)
 
 void DetailsDialog::refreshModel()
 {
-    if (!ids_.empty())
+    if (!ids_.empty() && ui_.tabs->isVisible())
     {
         session_.refreshExtraStats(ids_);
     }
@@ -1055,6 +1055,21 @@ void DetailsDialog::refreshUI()
 
         ui_.sessionLimitCheck->setChecked(uniform && baseline_flag);
 
+        // sequentialDownloadCheck
+        uniform = true;
+        baseline_flag = baseline.isSequentialDownload();
+
+        for (Torrent const* const tor : torrents)
+        {
+            if (baseline_flag != tor->isSequentialDownload())
+            {
+                uniform = false;
+                break;
+            }
+        }
+
+        ui_.sequentialDownloadCheck->setChecked(uniform && baseline_flag);
+
         // mySingleDownCheck
         uniform = true;
         baseline_flag = baseline.downloadIsLimited();
@@ -1340,6 +1355,11 @@ void DetailsDialog::onHonorsSessionLimitsToggled(bool val)
     torrentSet(TR_KEY_honors_session_limits, val);
 }
 
+void DetailsDialog::onSequentialDownloadToggled(bool val)
+{
+    torrentSet(TR_KEY_sequential_download, val);
+}
+
 void DetailsDialog::onDownloadLimitedToggled(bool val)
 {
     torrentSet(TR_KEY_download_limited, val);
@@ -1552,6 +1572,7 @@ void DetailsDialog::initOptionsTab()
     connect(ui_.ratioCombo, combo_index_changed, this, &DetailsDialog::onRatioModeChanged);
     connect(ui_.ratioSpin, &QSpinBox::editingFinished, this, &DetailsDialog::onSpinBoxEditingFinished);
     connect(ui_.sessionLimitCheck, &QCheckBox::clicked, this, &DetailsDialog::onHonorsSessionLimitsToggled);
+    connect(ui_.sequentialDownloadCheck, &QCheckBox::clicked, this, &DetailsDialog::onSequentialDownloadToggled);
     connect(ui_.singleDownCheck, &QCheckBox::clicked, this, &DetailsDialog::onDownloadLimitedToggled);
     connect(ui_.singleDownSpin, &QSpinBox::editingFinished, this, &DetailsDialog::onSpinBoxEditingFinished);
     connect(ui_.singleUpCheck, &QCheckBox::clicked, this, &DetailsDialog::onUploadLimitedToggled);

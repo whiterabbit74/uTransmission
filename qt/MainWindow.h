@@ -109,13 +109,14 @@ private slots:
     void openFolder();
     void openHelp() const;
     void openPreferences();
-    void openProperties();
     void openStats();
     void openTorrent();
     void openURL();
     void refreshPref(int idx);
     void removeTorrents(bool const delete_files);
+    void setDetailsVisible(bool);
     void setLocation();
+    void setSequentialDownload(bool);
     void setSortAscendingPref(bool);
     void toggleSpeedMode();
     void toggleWindows(bool do_show);
@@ -174,7 +175,9 @@ private:
     QAction* ratio_on_action_ = {};
     QWidgetList hidden_;
     QWidget* filter_bar_ = {};
+    QWidget* details_pane_ = {};
     QAction* alt_speed_action_ = {};
+    QAction* sequential_action_ = {};
     QString error_message_;
     bool auto_add_clipboard_links_ = {};
     QStringList clipboard_processed_keys_ = {};

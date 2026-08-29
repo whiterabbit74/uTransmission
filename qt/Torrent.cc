@@ -225,6 +225,7 @@ Torrent::fields_t Torrent::update(tr_quark const* keys, tr_variant const* const*
             HANDLE_KEY(seed_idle_mode, seed_idle_mode, SEED_IDLE_MODE)
             HANDLE_KEY(seed_ratio_limit, seed_ratio_limit, SEED_RATIO_LIMIT)
             HANDLE_KEY(seed_ratio_mode, seed_ratio_mode, SEED_RATIO_MODE)
+            HANDLE_KEY(sequential_download, sequential_download, SEQUENTIAL_DOWNLOAD)
             HANDLE_KEY(size_when_done, size_when_done, SIZE_WHEN_DONE)
             HANDLE_KEY(start_date, start_date, START_DATE)
             HANDLE_KEY(status, status, STATUS)
