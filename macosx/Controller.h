@@ -133,6 +133,7 @@ typedef NS_ENUM(NSUInteger, AddType) { //
 - (IBAction)showGlobalPopover:(id)sender;
 
 - (void)setGroup:(id)sender; //used by delegate-generated menu items
+- (IBAction)toggleSequentialDownloadForSelectedTorrents:(id)sender;
 
 - (IBAction)toggleSpeedLimit:(id)sender;
 - (IBAction)speedLimitChanged:(id)sender;

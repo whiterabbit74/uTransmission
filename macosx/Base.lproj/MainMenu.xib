@@ -1113,6 +1113,11 @@ CA
                         </connections>
                     </menu>
                 </menuItem>
+                <menuItem title="Download Sequentially" secondaryImage="list.number" catalog="system" id="XnA-Ck-MbJ">
+                    <connections>
+                        <action selector="toggleSequentialDownloadForSelectedTorrents:" target="206" id="Qyv-RS-Y0m"/>
+                    </connections>
+                </menuItem>
                 <menuItem isSeparatorItem="YES" id="3206">
                     <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                 </menuItem>
@@ -2353,6 +2358,7 @@ WQABAl4AAQJmAAAAAAAABAEAAAAAAAAARQAAAAAAAAAAAAAAAAABAmk
         </image>
         <image name="info.circle" catalog="system" width="15" height="15"/>
         <image name="keyboard" catalog="system" width="19" height="13"/>
+        <image name="list.number" catalog="system" width="16" height="13"/>
         <image name="megaphone" catalog="system" width="18" height="16"/>
         <image name="pause" catalog="system" width="9" height="13"/>
         <image name="pause.circle.fill" catalog="system" width="15" height="15"/>

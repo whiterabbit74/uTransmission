@@ -206,6 +206,10 @@ typedef NS_ENUM(NSUInteger, TabTag) {
     self.fTorrents = torrents;
 
     [self resetInfo];
+
+    // Explicitly update current view controller
+    [self.fViewController setInfoForTorrents:self.fTorrents];
+    [self.fViewController updateInfo];
 }
 
 - (NSRect)windowWillUseStandardFrame:(NSWindow*)window defaultFrame:(NSRect)defaultFrame
@@ -332,93 +336,94 @@ typedef NS_ENUM(NSUInteger, TabTag) {
     window.title = [NSString
         stringWithFormat:@"%@ — %@", self.fViewController.title, NSLocalizedString(@"Torrent Inspector", "Inspector -> title")];
 
+    // Use fTabs.superview as the container — it always resolves to the correct
+    // parent view whether the inspector is a standalone window or embedded in
+    // a split view. After embedding, window.contentView may point to a stale/
+    // auto-recreated view that is no longer in the visible hierarchy.
+    NSView* containerView = self.fTabs.superview;
+    BOOL const isEmbedded = (containerView.window != self.window);
+
+    // Must be set before the view is loaded, so the first layout pass already
+    // knows whether it is allowed to resize a window of its own.
+    self.fActivityViewController.embedded = isEmbedded;
+    self.fOptionsViewController.embedded = isEmbedded;
+
     NSView* view = self.fViewController.view;
 
     [self.fViewController updateInfo];
 
-    NSRect windowRect = window.frame, viewRect = view.frame;
-    CGFloat minWindowWidth = MAX(self.fMinWindowWidth, view.fittingSize.width);
-
-    //special case for Activity and Options views
-    if (self.fViewController == self.fActivityViewController)
+    if (!isEmbedded)
     {
-        [self.fActivityViewController setOldHeight:oldHeight];
-        [self.fActivityViewController checkLayout];
+        NSRect windowRect = window.frame, viewRect = view.frame;
+        CGFloat minWindowWidth = MAX(self.fMinWindowWidth, view.fittingSize.width);
 
-        minWindowWidth = MAX(self.fMinWindowWidth, self.fActivityViewController.fTransferView.frame.size.width);
-        viewRect = [self.fActivityViewController viewRect];
-    }
-    else if (self.fViewController == self.fOptionsViewController)
-    {
-        [self.fOptionsViewController setOldHeight:oldHeight];
-        [self.fOptionsViewController checkLayout];
-
-        minWindowWidth = MAX(self.fMinWindowWidth, self.fOptionsViewController.fPriorityView.frame.size.width);
-        viewRect = [self.fOptionsViewController viewRect];
-    }
-
-    CGFloat const viewHeightDifference = NSHeight(viewRect) - oldHeight;
-    windowRect.origin.y -= viewHeightDifference;
-    windowRect.size.height += viewHeightDifference;
-    windowRect.size.width = MAX(NSWidth(windowRect), minWindowWidth);
-
-    if ([self.fViewController respondsToSelector:@selector(saveViewSize)]) //a little bit hacky, but avoids requiring an extra method
-    {
-        if (window.screen)
+        if (self.fViewController == self.fActivityViewController)
         {
-            CGFloat const screenHeight = NSHeight(window.screen.visibleFrame);
-            if (NSHeight(windowRect) > screenHeight)
-            {
-                CGFloat const windowHeightDifference = screenHeight - NSHeight(windowRect);
-                windowRect.origin.y -= windowHeightDifference;
-                windowRect.size.height += windowHeightDifference;
-
-                viewRect.size.height += windowHeightDifference;
-            }
+            [self.fActivityViewController setOldHeight:oldHeight];
+            [self.fActivityViewController checkLayout];
+            minWindowWidth = MAX(self.fMinWindowWidth, self.fActivityViewController.fTransferView.frame.size.width);
+            viewRect = [self.fActivityViewController viewRect];
+        }
+        else if (self.fViewController == self.fOptionsViewController)
+        {
+            [self.fOptionsViewController setOldHeight:oldHeight];
+            [self.fOptionsViewController checkLayout];
+            minWindowWidth = MAX(self.fMinWindowWidth, self.fOptionsViewController.fPriorityView.frame.size.width);
+            viewRect = [self.fOptionsViewController viewRect];
         }
 
-        window.minSize = NSMakeSize(minWindowWidth, NSHeight(windowRect) - NSHeight(viewRect) + kTabMinHeight);
-        window.maxSize = NSMakeSize(FLT_MAX, FLT_MAX);
-    }
-    else
-    {
-        window.minSize = NSMakeSize(minWindowWidth, NSHeight(windowRect));
-        window.maxSize = NSMakeSize(FLT_MAX, NSHeight(windowRect));
-    }
+        CGFloat const viewHeightDifference = NSHeight(viewRect) - oldHeight;
+        windowRect.origin.y -= viewHeightDifference;
+        windowRect.size.height += viewHeightDifference;
+        windowRect.size.width = MAX(NSWidth(windowRect), minWindowWidth);
 
-    viewRect.size.width = NSWidth(windowRect);
-    view.frame = viewRect;
+        if ([self.fViewController respondsToSelector:@selector(saveViewSize)])
+        {
+            if (window.screen)
+            {
+                CGFloat const screenHeight = NSHeight(window.screen.visibleFrame);
+                if (NSHeight(windowRect) > screenHeight)
+                {
+                    CGFloat const windowHeightDifference = screenHeight - NSHeight(windowRect);
+                    windowRect.origin.y -= windowHeightDifference;
+                    windowRect.size.height += windowHeightDifference;
+                    viewRect.size.height += windowHeightDifference;
+                }
+            }
+            window.minSize = NSMakeSize(minWindowWidth, NSHeight(windowRect) - NSHeight(viewRect) + kTabMinHeight);
+            window.maxSize = NSMakeSize(FLT_MAX, FLT_MAX);
+        }
+        else
+        {
+            window.minSize = NSMakeSize(minWindowWidth, NSHeight(windowRect));
+            window.maxSize = NSMakeSize(FLT_MAX, NSHeight(windowRect));
+        }
 
-    if (self.fViewController == self.fActivityViewController)
-    {
-        self.fActivityViewController.view.hidden = YES;
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.fActivityViewController updateWindowLayout];
-            self.fActivityViewController.view.hidden = NO;
-        });
-    }
-    else if (self.fViewController == self.fOptionsViewController)
-    {
-        self.fOptionsViewController.view.hidden = YES;
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.fOptionsViewController updateWindowLayout];
-            self.fOptionsViewController.view.hidden = NO;
-        });
-    }
-    else
-    {
         [window setFrame:windowRect display:YES animate:oldTabTag != kInvalidTag];
     }
+    else
+    {
+        // In embedded mode, only do layout checks — the split view handles sizing
+        if (self.fViewController == self.fActivityViewController)
+        {
+            [self.fActivityViewController checkLayout];
+        }
+        else if (self.fViewController == self.fOptionsViewController)
+        {
+            [self.fOptionsViewController checkLayout];
+        }
+    }
 
-    [window.contentView addSubview:view];
+    // Add the new tab's view to the correct container
+    view.translatesAutoresizingMaskIntoConstraints = NO;
+    [containerView addSubview:view];
 
-    [window.contentView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-0-[view]-0-|" options:0 metrics:nil
-                                                                                 views:@{ @"view" : view }]];
-    [window.contentView
-        addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[tabs]-0-[view]-0-|" options:0 metrics:nil
-                                                                 views:@{ @"tabs" : self.fTabs, @"view" : view }]];
+    [NSLayoutConstraint activateConstraints:@[
+        [view.leadingAnchor constraintEqualToAnchor:containerView.leadingAnchor],
+        [view.trailingAnchor constraintEqualToAnchor:containerView.trailingAnchor],
+        [view.bottomAnchor constraintEqualToAnchor:containerView.bottomAnchor],
+        [view.topAnchor constraintEqualToAnchor:self.fTabs.bottomAnchor]
+    ]];
 
     if ((self.fCurrentTabTag == TabTagFile || oldTabTag == TabTagFile) &&
         ([QLPreviewPanel sharedPreviewPanelExists] && [QLPreviewPanel sharedPreviewPanel].visible))
@@ -426,12 +431,15 @@ typedef NS_ENUM(NSUInteger, TabTag) {
         [[QLPreviewPanel sharedPreviewPanel] reloadData];
     }
 
-    //add window resize notification
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(windowWasResized:)
-                                                   name:NSWindowDidResizeNotification
-                                                 object:self.window];
-    });
+    //add window resize notification (only relevant for standalone mode)
+    if (!isEmbedded)
+    {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(windowWasResized:)
+                                                       name:NSWindowDidResizeNotification
+                                                     object:self.window];
+        });
+    }
 }
 
 - (void)setNextTab

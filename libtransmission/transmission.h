@@ -944,6 +944,9 @@ void tr_torrentUseSpeedLimit(tr_torrent* tor, tr_direction dir, bool enabled);
 bool tr_torrentUsesSessionLimits(tr_torrent const* tor);
 void tr_torrentUseSessionLimits(tr_torrent* tor, bool enabled);
 
+bool tr_torrentIsSequentialDownload(tr_torrent const* tor);
+void tr_torrentSetSequentialDownload(tr_torrent* tor, bool enabled);
+
 // --- Ratio Limits
 
 enum tr_ratiolimit : uint8_t

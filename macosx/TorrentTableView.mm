@@ -169,11 +169,36 @@ static NSTimeInterval const kToggleProgressSeconds = 0.175;
 
 - (void)reloadDataForRowIndexes:(NSIndexSet*)rowIndexes columnIndexes:(NSIndexSet*)columnIndexes
 {
-    [super reloadDataForRowIndexes:rowIndexes columnIndexes:columnIndexes];
+    if (rowIndexes.count == 0)
+    {
+        return;
+    }
+
+    NSUInteger const rowCount = self.numberOfRows < 0 ? 0 : (NSUInteger)self.numberOfRows;
+    NSMutableIndexSet* validRowIndexes = [NSMutableIndexSet indexSet];
+    [rowIndexes enumerateIndexesUsingBlock:^(NSUInteger row, BOOL*) {
+        if (row < rowCount)
+        {
+            [validRowIndexes addIndex:row];
+        }
+    }];
+
+    if (validRowIndexes.count == 0)
+    {
+        return;
+    }
+
+    [super reloadDataForRowIndexes:validRowIndexes columnIndexes:columnIndexes];
 
     //redraw fControlButton
     BOOL minimal = [self.fDefaults boolForKey:@"SmallView"];
-    [rowIndexes enumerateIndexesUsingBlock:^(NSUInteger row, BOOL*) {
+    [validRowIndexes enumerateIndexesUsingBlock:^(NSUInteger row, BOOL*) {
+        NSInteger const currentNumberOfRows = self.numberOfRows;
+        if (currentNumberOfRows <= 0 || row >= (NSUInteger)currentNumberOfRows)
+        {
+            return;
+        }
+
         id rowItem = [self itemAtRow:row];
         if (![rowItem isKindOfClass:[TorrentGroup class]])
         {

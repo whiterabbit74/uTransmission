@@ -51,6 +51,7 @@
 #import "BlocklistDownloader.h"
 #import "StatusBarController.h"
 #import "FilterBarController.h"
+#import "SidebarController.h"
 #import "FileRenameSheetController.h"
 #import "BonjourController.h"
 #import "Badger.h"
@@ -80,6 +81,7 @@ static ToolbarItemIdentifier const ToolbarItemIdentifierPauseResumeSelected = @"
 static ToolbarItemIdentifier const ToolbarItemIdentifierFilter = @"Toolbar Toggle Filter";
 static ToolbarItemIdentifier const ToolbarItemIdentifierQuickLook = @"Toolbar QuickLook";
 static ToolbarItemIdentifier const ToolbarItemIdentifierShare = @"Toolbar Share";
+static ToolbarItemIdentifier const ToolbarItemIdentifierSidebar = @"Toolbar Sidebar";
 
 typedef NS_ENUM(NSUInteger, ToolbarGroupTag) { //
     ToolbarGroupTagPause = 0,
@@ -318,6 +320,10 @@ static void removeKeRangerRansomware()
 @property(nonatomic) StatusBarController* fStatusBar;
 
 @property(nonatomic) FilterBarController* fFilterBar;
+@property(nonatomic) SidebarController* fSidebarController;
+@property(nonatomic) NSSplitViewController* fSplitViewController;
+@property(nonatomic) NSSplitViewItem* fInspectorSplitItem;
+@property(nonatomic) NSSplitViewItem* fSidebarSplitItem;
 
 @property(nonatomic) QLPreviewPanel* fPreviewPanel;
 @property(nonatomic) BOOL fQuitting;
@@ -328,6 +334,7 @@ static void removeKeRangerRansomware()
 
 @property(nonatomic) NSMutableArray<NSString*>* fAutoImportedNames;
 @property(nonatomic) NSTimer* fAutoImportTimer;
+@property(nonatomic) NSMutableDictionary<Torrent*, NSNumber*>* fPendingTorrentRemovals;
 
 @property(nonatomic) NSURLSession* fSession;
 
@@ -824,11 +831,6 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     [NSRunLoop.currentRunLoop addTimer:self.fTimer forMode:NSEventTrackingRunLoopMode];
 
     [self.fWindow makeKeyAndOrderFront:nil];
-
-    if ([self.fDefaults boolForKey:@"InfoVisible"])
-    {
-        [self showInfo:nil];
-    }
 }
 
 #pragma mark - NSApplicationDelegate
@@ -1025,6 +1027,22 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     return NSTerminateLater;
 }
 
+- (void)flushPendingTorrentRemovals
+{
+    if (self.fPendingTorrentRemovals.count == 0)
+    {
+        return;
+    }
+
+    NSDictionary<Torrent*, NSNumber*>* pendingRemovals = [self.fPendingTorrentRemovals copy];
+    self.fPendingTorrentRemovals = nil;
+
+    for (Torrent* torrent in pendingRemovals)
+    {
+        [torrent closeRemoveTorrent:pendingRemovals[torrent].boolValue];
+    }
+}
+
 - (void)applicationWillTerminate:(NSNotification*)notification
 {
     self.fQuitting = YES;
@@ -1060,7 +1078,7 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     [self.fSession invalidateAndCancel];
 
     //remember window states
-    [self.fDefaults setBool:self.fInfoController.window.visible forKey:@"InfoVisible"];
+    [self.fDefaults setBool:self.fInspectorSplitItem && !self.fInspectorSplitItem.collapsed forKey:@"InfoVisible"];
 
     if ([QLPreviewPanel sharedPreviewPanelExists] && [QLPreviewPanel sharedPreviewPanel].visible)
     {
@@ -1075,6 +1093,8 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
 
     // clear the badge
     [self.fBadger updateBadgeWithDownload:0 upload:0];
+
+    [self flushPendingTorrentRemovals];
 
     //save history
     [self updateTorrentHistory];
@@ -1993,13 +2013,34 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
         {
             if (!beganUpdate)
             {
+                if (self.fPendingTorrentRemovals == nil)
+                {
+                    self.fPendingTorrentRemovals = [[NSMutableDictionary alloc] init];
+                }
+                for (Torrent* torrent in torrents)
+                {
+                    self.fPendingTorrentRemovals[torrent] = @(deleteData);
+                }
+
                 [NSAnimationContext beginGrouping]; //this has to be before we set the completion handler (#4874)
 
                 //we can't closeRemoveTorrent: until it's no longer in the GUI at all
                 NSAnimationContext.currentContext.completionHandler = ^{
+                    if (self.fQuitting)
+                    {
+                        return;
+                    }
+
                     for (Torrent* torrent in torrents)
                     {
-                        [torrent closeRemoveTorrent:deleteData];
+                        NSNumber* pendingDeleteData = self.fPendingTorrentRemovals[torrent];
+                        [self.fPendingTorrentRemovals removeObjectForKey:torrent];
+                        [torrent closeRemoveTorrent:pendingDeleteData ? pendingDeleteData.boolValue : deleteData];
+                    }
+
+                    if (self.fPendingTorrentRemovals.count == 0)
+                    {
+                        self.fPendingTorrentRemovals = nil;
                     }
 
                     [self fullUpdateUI];
@@ -2042,6 +2083,7 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
         //do here if we're not doing it at the end of the animation
         for (Torrent* torrent in torrents)
         {
+            [self.fPendingTorrentRemovals removeObjectForKey:torrent];
             [torrent closeRemoveTorrent:deleteData];
         }
     }
@@ -2302,27 +2344,6 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     [AboutWindowController.aboutController showWindow:nil];
 }
 
-- (void)showInfo:(id)sender
-{
-    if (self.fInfoController.window.visible)
-    {
-        [self.fInfoController close];
-    }
-    else
-    {
-        [self.fInfoController updateInfoStats];
-        [self.fInfoController.window orderFront:nil];
-
-        if (self.fInfoController.canQuickLook && [QLPreviewPanel sharedPreviewPanelExists] &&
-            [QLPreviewPanel sharedPreviewPanel].visible)
-        {
-            [[QLPreviewPanel sharedPreviewPanel] reloadData];
-        }
-    }
-
-    [self.fWindow.toolbar validateVisibleItems];
-}
-
 - (void)resetInfo
 {
     [self.fInfoController setInfoForTorrents:self.fTableView.selectedTorrents];
@@ -2396,8 +2417,8 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
             self.fClearCompletedButton.hidden = !anyCompleted;
         }
 
-        //update non-constant parts of info window
-        if (self.fInfoController.window.visible)
+        // Update non-constant parts of info window if it's currently visible in the split view
+        if (self.fInspectorSplitItem && !self.fInspectorSplitItem.collapsed)
         {
             [self.fInfoController updateInfoStats];
         }
@@ -3067,13 +3088,21 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
 
     NSArray<Torrent*>* allTorrents = [self.fTorrents objectsAtIndexes:indexesOfNonFilteredTorrents];
 
-    //set button tooltips
+    // Update both the filter bar and the new sidebar with the latest counts
     if (self.fFilterBar)
     {
         [self.fFilterBar setCountAll:self.fTorrents.count active:active.load() downloading:downloading.load()
                              seeding:seeding.load()
                               paused:paused.load()
                                error:error.load()];
+    }
+
+    if (self.fSidebarController)
+    {
+        [self.fSidebarController setCountAll:self.fTorrents.count active:active.load() downloading:downloading.load()
+                                     seeding:seeding.load()
+                                      paused:paused.load()
+                                       error:error.load()];
     }
 
     //if either the previous or current lists are blank, set its value to the other
@@ -3486,6 +3515,32 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     [self applyFilter];
     [self updateUI];
     [self updateTorrentHistory];
+}
+
+- (IBAction)toggleSequentialDownloadForSelectedTorrents:(id)sender
+{
+    NSArray<Torrent*>* selectedTorrents = self.fTableView.selectedTorrents;
+    if (selectedTorrents.count == 0)
+    {
+        return;
+    }
+
+    BOOL enableSequentialDownload = NO;
+    for (Torrent* torrent in selectedTorrents)
+    {
+        if (!torrent.sequentialDownload)
+        {
+            enableSequentialDownload = YES;
+            break;
+        }
+    }
+
+    for (Torrent* torrent in selectedTorrents)
+    {
+        torrent.sequentialDownload = enableSequentialDownload;
+    }
+
+    [NSNotificationCenter.defaultCenter postNotificationName:@"UpdateOptions" object:nil];
 }
 
 - (void)toggleSpeedLimit:(id)sender
@@ -4416,6 +4471,27 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
 
         return item;
     }
+    else if ([ident isEqualToString:ToolbarItemIdentifierSidebar])
+    {
+        ButtonToolbarItem* item = [self standardToolbarButtonWithIdentifier:ident];
+        ((NSButtonCell*)((NSButton*)item.view).cell).showsStateBy = NSContentsCellMask;
+
+        item.label = NSLocalizedString(@"Sidebar", "Sidebar toolbar item -> label");
+        item.paletteLabel = NSLocalizedString(@"Toggle Sidebar", "Sidebar toolbar item -> palette label");
+        item.toolTip = NSLocalizedString(@"Toggle the sidebar", "Sidebar toolbar item -> tooltip");
+        NSImage* sidebarImage = [NSImage imageWithSystemSymbolName:@"sidebar.leading" accessibilityDescription:nil];
+        if (@available(macOS 12.0, *))
+        {
+            NSImageSymbolConfiguration* config = [NSImageSymbolConfiguration configurationWithHierarchicalColor:[NSColor whiteColor]];
+            sidebarImage = [sidebarImage imageWithSymbolConfiguration:config];
+        }
+        item.image = sidebarImage;
+        ((NSButton*)item.view).contentTintColor = [NSColor whiteColor];
+        item.target = self;
+        item.action = @selector(toggleSidebar:);
+
+        return item;
+    }
     else
     {
         return nil;
@@ -4465,6 +4541,7 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
         ToolbarItemIdentifierQuickLook,
         ToolbarItemIdentifierFilter,
         ToolbarItemIdentifierInfo,
+        ToolbarItemIdentifierSidebar,
         NSToolbarSpaceItemIdentifier,
         NSToolbarFlexibleSpaceItemIdentifier
     ];
@@ -4473,6 +4550,7 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
 - (NSArray*)toolbarDefaultItemIdentifiers:(NSToolbar*)toolbar
 {
     return @[
+        ToolbarItemIdentifierSidebar,
         ToolbarItemIdentifierCreate,
         ToolbarItemIdentifierOpenFile,
         ToolbarItemIdentifierRemove,
@@ -4551,8 +4629,18 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     //set info item
     if ([ident isEqualToString:ToolbarItemIdentifierInfo])
     {
-        ((NSButton*)toolbarItem.view).state = self.fInfoController.window.visible;
+        ((NSButton*)toolbarItem.view).state = (self.fInspectorSplitItem && !self.fInspectorSplitItem.collapsed) ?
+            NSControlStateValueOn :
+            NSControlStateValueOff;
         return YES;
+    }
+
+    //set sidebar item
+    if ([ident isEqualToString:ToolbarItemIdentifierSidebar])
+    {
+        ((NSButton*)toolbarItem.view).state = (self.fSidebarSplitItem && !self.fSidebarSplitItem.collapsed) ? NSControlStateValueOn :
+                                                                                                              NSControlStateValueOff;
+        return self.fSidebarSplitItem != nil;
     }
 
     //set filter item
@@ -4658,6 +4746,30 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
         return canUseTable && self.fTableView.numberOfSelectedRows > 0;
     }
 
+    if (action == @selector(toggleSequentialDownloadForSelectedTorrents:))
+    {
+        if (!canUseTable || self.fTableView.numberOfSelectedRows == 0)
+        {
+            menuItem.state = NSControlStateValueOff;
+            return NO;
+        }
+
+        NSEnumerator* enumerator = [self.fTableView.selectedTorrents objectEnumerator];
+        Torrent* torrent = [enumerator nextObject];
+        NSInteger sequentialState = torrent.sequentialDownload ? NSControlStateValueOn : NSControlStateValueOff;
+
+        while ((torrent = [enumerator nextObject]) && sequentialState != NSControlStateValueMixed)
+        {
+            if (sequentialState != (torrent.sequentialDownload ? NSControlStateValueOn : NSControlStateValueOff))
+            {
+                sequentialState = NSControlStateValueMixed;
+            }
+        }
+
+        menuItem.state = sequentialState;
+        return YES;
+    }
+
     if (action == @selector(toggleSmallView:))
     {
         menuItem.state = [self.fDefaults boolForKey:@"SmallView"] ? NSControlStateValueOn : NSControlStateValueOff;
@@ -4679,8 +4791,9 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     //enable show info
     if (action == @selector(showInfo:))
     {
-        NSString* title = self.fInfoController.window.visible ? NSLocalizedString(@"Hide Inspector", "View menu -> Inspector") :
-                                                                NSLocalizedString(@"Show Inspector", "View menu -> Inspector");
+        BOOL const visible = self.fInspectorSplitItem && !self.fInspectorSplitItem.collapsed;
+        NSString* title = visible ? NSLocalizedString(@"Hide Inspector", "View menu -> Inspector") :
+                                    NSLocalizedString(@"Show Inspector", "View menu -> Inspector");
         menuItem.title = title;
 
         return YES;
@@ -4689,7 +4802,7 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     //enable prev/next inspector tab
     if (action == @selector(setInfoTab:))
     {
-        return self.fInfoController.window.visible;
+        return self.fInspectorSplitItem && !self.fInspectorSplitItem.collapsed;
     }
 
     //enable toggle status bar
@@ -5083,8 +5196,116 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     return menu;
 }
 
+- (void)toggleSidebar:(id)sender
+{
+    if (self.fSidebarSplitItem)
+    {
+        [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
+            context.duration = 0.2;
+            self.fSidebarSplitItem.animator.collapsed = !self.fSidebarSplitItem.collapsed;
+        }];
+    }
+    [self.fWindow.toolbar validateVisibleItems];
+}
+
+- (void)showInfo:(id)sender
+{
+    if (self.fInspectorSplitItem)
+    {
+        self.fInspectorSplitItem.collapsed = !self.fInspectorSplitItem.collapsed;
+
+        if (!self.fInspectorSplitItem.collapsed)
+        {
+            [self.fInfoController updateInfoStats];
+        }
+    }
+
+    [self.fWindow.toolbar validateVisibleItems];
+}
+
 - (void)updateMainWindow
 {
+    if (self.fSidebarController == nil)
+    {
+        self.fSidebarController = [[SidebarController alloc] init];
+
+        // Identify the bottom bar view (the one with the turtle and transfer counts)
+        NSView* mainBottomBar = self.fActionButton.superview;
+        [mainBottomBar removeFromSuperview];
+
+        // 1. Root Vertical Split - pins the status bar to the very bottom
+        NSSplitViewController* rootVerticalSplit = [[NSSplitViewController alloc] init];
+        rootVerticalSplit.splitView.vertical = NO;
+        rootVerticalSplit.splitView.dividerStyle = NSSplitViewDividerStyleThin;
+
+        // 2. Main Horizontal Split (Sidebar | Content)
+        self.fSplitViewController = [[NSSplitViewController alloc] init];
+        self.fSplitViewController.splitView.dividerStyle = NSSplitViewDividerStyleThin;
+        self.fSplitViewController.splitView.vertical = YES;
+
+        // Sidebar Item
+        self.fSidebarSplitItem = [NSSplitViewItem sidebarWithViewController:self.fSidebarController];
+        self.fSidebarSplitItem.minimumThickness = 150.0;
+        self.fSidebarSplitItem.maximumThickness = 170.0;
+        self.fSidebarSplitItem.canCollapse = YES;
+        [self.fSplitViewController addSplitViewItem:self.fSidebarSplitItem];
+
+        // 3. Right Side - Vertical Split (Torrent List / Inspector)
+        NSSplitViewController* rightSplitViewController = [[NSSplitViewController alloc] init];
+        rightSplitViewController.splitView.vertical = NO; // Stacked vertically
+        rightSplitViewController.splitView.dividerStyle = NSSplitViewDividerStyleThin;
+
+        // Top: Torrent List - Use the scroll view directly for better containment
+        NSViewController* torrentListViewController = [[NSViewController alloc] init];
+        NSView* torrentListView = self.fTableView.enclosingScrollView;
+        torrentListView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        torrentListViewController.view = torrentListView;
+
+        NSSplitViewItem* torrentListItem = [NSSplitViewItem splitViewItemWithViewController:torrentListViewController];
+        torrentListItem.holdingPriority = NSLayoutPriorityDefaultLow - 10.0; // Lower priority to ensure it expands
+        [rightSplitViewController addSplitViewItem:torrentListItem];
+
+        // Bottom: Inspector
+        NSViewController* inspectorViewController = [[NSViewController alloc] init];
+        NSView* inspectorView = self.fInfoController.window.contentView;
+        inspectorView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        inspectorViewController.view = inspectorView;
+
+        self.fInspectorSplitItem = [NSSplitViewItem splitViewItemWithViewController:inspectorViewController];
+        self.fInspectorSplitItem.minimumThickness = 200.0;
+        self.fInspectorSplitItem.preferredThicknessFraction = 0.35;
+        self.fInspectorSplitItem.collapsed = ![self.fDefaults boolForKey:@"InfoVisible"];
+        self.fInspectorSplitItem.holdingPriority = NSLayoutPriorityDefaultLow + 1;
+        [rightSplitViewController addSplitViewItem:self.fInspectorSplitItem];
+
+        // Wrap the right split in a split item and add to the main horizontal split
+        NSSplitViewItem* rightPaneItem = [NSSplitViewItem splitViewItemWithViewController:rightSplitViewController];
+        [self.fSplitViewController addSplitViewItem:rightPaneItem];
+
+        // 4. Final Assembly
+        // Add the main content (Sidebar + List/Inspector) as the top item in the root split
+        NSSplitViewItem* contentItem = [NSSplitViewItem splitViewItemWithViewController:self.fSplitViewController];
+        [rootVerticalSplit addSplitViewItem:contentItem];
+
+        // Add the Status Bar as the bottom item in the root split
+        NSViewController* bottomBarViewController = [[NSViewController alloc] init];
+        bottomBarViewController.view = mainBottomBar;
+        NSSplitViewItem* bottomBarItem = [NSSplitViewItem splitViewItemWithViewController:bottomBarViewController];
+        bottomBarItem.canCollapse = NO;
+        bottomBarItem.minimumThickness = kBottomBarHeight;
+        bottomBarItem.maximumThickness = kBottomBarHeight;
+        [rootVerticalSplit addSplitViewItem:bottomBarItem];
+
+        // Set the root vertical split as the primary content of the window
+        self.fWindow.contentViewController = rootVerticalSplit;
+
+        // Ensure the torrent list is populated and displayed
+        [self applyFilter];
+
+        // Update with initial selection
+        [self.fInfoController setInfoForTorrents:self.fTableView.selectedTorrents];
+        [self.fInfoController updateInfoStats];
+    }
     if (self.fStatusBar == nil)
     {
         self.fStatusBar = [[StatusBarController alloc] initWithLib:self.fLib];
@@ -5123,11 +5344,15 @@ void onTorrentCompletenessChanged(tr_torrent* tor, tr_completeness status, bool 
     }
 
     [self fullUpdateUI];
-    [self updateForAutoSize];
 }
 
 - (void)setWindowSizeToFit
 {
+    if (self.fSplitViewController != nil)
+    {
+        return;
+    }
+
     if (!self.isFullScreen)
     {
         NSScrollView* scrollView = self.fTableView.enclosingScrollView;

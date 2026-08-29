@@ -23,4 +23,8 @@
 @property(nonatomic) IBOutlet NSView* fTransferView;
 @property(nonatomic) CGFloat oldHeight;
 
+/// Set when the inspector is hosted inside the main window's split view,
+/// where sizing is owned by the split view rather than by this controller.
+@property(nonatomic) BOOL embedded;
+
 @end

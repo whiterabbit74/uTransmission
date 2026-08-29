@@ -479,6 +479,16 @@ bool trashDataFile(std::string_view const filename, tr_error* error)
     tr_torrentUseSessionLimits(self.fHandle, use);
 }
 
+- (BOOL)sequentialDownload
+{
+    return tr_torrentIsSequentialDownload(self.fHandle);
+}
+
+- (void)setSequentialDownload:(BOOL)enabled
+{
+    tr_torrentSetSequentialDownload(self.fHandle, enabled);
+}
+
 - (void)setMaxPeerConnect:(uint16_t)count
 {
     NSParameterAssert(count > 0);

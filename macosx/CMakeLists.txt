@@ -170,6 +170,8 @@ target_sources(${TR_NAME}-mac
         StatsWindowController.mm
         StatusBarController.h
         StatusBarController.mm
+        SidebarController.h
+        SidebarController.mm
         Toolbar.h
         Toolbar.mm
         Torrent.h

@@ -70,6 +70,15 @@ static CGFloat const kStackViewVerticalSpacing = 8.0;
     [self checkWindowSize];
 }
 
+- (void)viewDidLayout
+{
+    [super viewDidLayout];
+    // Re-check layout after Auto Layout has resolved the actual frame size.
+    // This fixes the case where the view is embedded in a split view and the
+    // initial checkLayout ran before the view had its real width.
+    [self checkLayout];
+}
+
 - (CGFloat)fHorizLayoutHeight
 {
     return NSHeight(self.fTransferView.frame) + 2 * kStackViewInset;
@@ -102,7 +111,15 @@ static CGFloat const kStackViewVerticalSpacing = 8.0;
 
 - (void)checkLayout
 {
-    if (NSWidth(self.view.window.frame) >= self.fHorizLayoutWidth + 1)
+    // Use the view's own width (or its enclosing container) rather than
+    // window width, so horizontal layout works when embedded in a split view
+    CGFloat availableWidth = NSWidth(self.view.frame);
+    if (availableWidth < 1)
+    {
+        availableWidth = NSWidth(self.view.window.frame);
+    }
+
+    if (availableWidth >= self.fHorizLayoutWidth + 1)
     {
         self.fActivityStackView.orientation = NSUserInterfaceLayoutOrientationHorizontal;
 
@@ -128,6 +145,12 @@ static CGFloat const kStackViewVerticalSpacing = 8.0;
 - (void)updateWindowLayout
 {
     [self checkLayout];
+
+    if (self.embedded)
+    {
+        self.view.frame = [self viewRect];
+        return;
+    }
 
     CGFloat difference = self.fHeightChange;
 

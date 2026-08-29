@@ -28,6 +28,7 @@
 - (IBAction)setIdleLimit:(id)sender;
 
 - (IBAction)setRemoveWhenSeedingCompletes:(id)sender;
+- (IBAction)setSequentialDownload:(id)sender;
 
 - (IBAction)setPriority:(id)sender;
 
@@ -35,5 +36,9 @@
 
 @property(nonatomic) IBOutlet NSView* fPriorityView;
 @property(nonatomic) CGFloat oldHeight;
+
+/// Set when the inspector is hosted inside the main window's split view,
+/// where sizing is owned by the split view rather than by this controller.
+@property(nonatomic) BOOL embedded;
 
 @end
