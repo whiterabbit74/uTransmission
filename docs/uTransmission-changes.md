@@ -1,58 +1,133 @@
-# uTransmission — текущие доработки
+# uTransmission — журнал вмешательств и порядок переноса на новую версию
 
-Снимок рабочей версии относительно базового Transmission `a89f4bd5b` (29 августа 2026).
-Документ описывает изменения, найденные в рабочем дереве, а не только готовые к релизу функции.
+Документ нужен для одного: когда выйдет новая версия Transmission, быстро получить
+из неё такой же uTransmission. Ниже — способ переноса, полный список вмешательств с
+якорями в коде и грабли, на которые мы уже наступили.
 
-## Что добавлено
+База: Transmission `a89f4bd5b`. Наши изменения лежат тремя коммитами поверх неё,
+`origin` указывает на апстрим `github.com/transmission/transmission`.
 
-### 1. Новая боковая панель macOS
+## Как переносить
 
-- Добавлен `SidebarController` на базе `NSOutlineView` (иерархический список macOS).
-- Раздел **Transfers** содержит фильтры: все, активные, загружаемые, раздающие, приостановленные и с ошибкой.
-- Раздел **Tags** показывает все теги, включая «без тега», и синхронизируется с `GroupsController`.
-- В фильтрах отображаются актуальные количества торрентов.
-- Выбор пункта панели сохраняется через существующие `Filter` и `FilterGroup`.
-- Добавлена кнопка панели в toolbar (панель инструментов) с возможностью скрытия.
+Основной путь — не переписывать правки руками, а перенести коммиты:
+
+```sh
+git fetch origin
+git rebase origin/main          # или origin/<нужный тег>
+./code_style.sh                 # pre-commit хук требует clang-format
+```
+
+Если коммит не накладывается, откройте конфликтный файл и найдите вмешательство в
+списке ниже по якорю (имени метода) — там написано, что и зачем делалось. Якоря даны
+по методам, а не по номерам строк, потому что строки в апстриме сдвигаются.
+
+После переноса — раздел «Проверка» в конце.
+
+## Список вмешательств
+
+### 1. Боковая панель
+
+| Где | Что |
+| --- | --- |
+| `macosx/SidebarController.h`, `.mm` | Новые файлы целиком. `NSOutlineView` с разделами Transfers и Tags, счётчики торрентов, выбор пишется в существующие `Filter` и `FilterGroup`. |
+| `macosx/CMakeLists.txt`, `target_sources` | Добавлены два новых файла в сборку. |
+| `Controller.mm`, `updateMainWindow` | Сборка иерархии `NSSplitViewController`. Самое хрупкое место всего форка, см. пункт 2. |
+| `Controller.mm`, `toggleSidebar:` | Свёртывание панели с анимацией. |
+| `Controller.mm`, `toolbar:itemForItemIdentifier:` | Кнопка `ToolbarItemIdentifierSidebar`. Блок сделан копией соседнего пункта Inspector — если апстрим поменяет способ создания кнопок тулбара, копируйте новый образец оттуда же. |
+| `Controller.mm`, `toolbarAllowedItemIdentifiers:`, `toolbarDefaultItemIdentifiers:` | Регистрация кнопки. |
+| `Controller.mm`, `validateToolbarItem:` | Состояние кнопки из `fSidebarSplitItem.collapsed`. |
+| `Controller.mm`, `applyFilter` | Обновление счётчиков в панели. |
 
 ### 2. Инспектор внутри главного окна
 
-- Главный экран перестроен на `NSSplitViewController` (системный контейнер разделённых областей): боковая панель → список торрентов → инспектор.
-- Инспектор теперь можно показать/скрыть без отдельного окна.
-- По умолчанию инспектор открыт (`InfoVisible` в `Defaults.plist`) и занимает высоту, которую реально требует его содержимое, но не больше половины окна. Высоту, выставленную пользователем вручную, код не трогает.
-- Существующие вкладки инспектора (общая информация, активность, трекеры, пиры и файлы) сохранены.
-- Layout (раскладка) вкладок «Activity» и «Options» теперь учитывает ширину собственного контейнера, а не всего окна.
-- При смене вкладки данные выбранных торрентов принудительно обновляются.
+| Где | Что |
+| --- | --- |
+| `Controller.mm`, `updateMainWindow` | Три вложенных `NSSplitViewController`: корневой вертикальный (контент + нижняя панель), горизонтальный (панель + контент), правый вертикальный (список + инспектор). |
+| `Controller.mm`, `updateMainWindow` | Нижняя панель берётся как `self.fActionButton.superview`, а корневой view инспектора — как `contentView` его окна. Обе привязки зависят от структуры XIB: если апстрим переверстает `MainMenu.xib` или `InfoWindow.xib`, ломается здесь. |
+| `Controller.mm`, `showInfo:` | Вместо показа окна — свёртывание/развёртывание `fInspectorSplitItem`. |
+| `Controller.mm`, `clampInspectorHeight` | Новый метод: высота панели по натуральному размеру содержимого, не ниже `kInspectorMinHeight`, не выше `kInspectorMaxHeightFraction` окна. Высоту, выставленную пользователем вручную, не трогает. |
+| `Controller.mm`, `validateToolbarItem:`, `applicationWillTerminate:` | Состояние инспектора читается из `fInspectorSplitItem.collapsed`, а не из видимости окна. |
+| `Controller.mm`, `awakeFromNib` | Удалён вызов `showInfo:` при запуске: состояние теперь задаётся при создании split item, а `showInfo:` — переключатель, поэтому вызов инвертировал сохранённую настройку. |
+| `Controller.mm`, `setWindowSizeToFit` | Ранний выход, когда включена split-компоновка. |
+| `InfoWindowController.mm`, `setTab:` | Ветка для встроенного режима: размер окна не меняется, вкладка добавляется в `fTabs.superview` через constraints. Признак встроенности — `containerView.window != self.window`. |
+| `InfoWindowController.mm`, `setTab:` | Перед загрузкой view выставляется `embedded` у Activity и Options. Порядок важен: свойство должно быть установлено до первого обращения к `.view`, иначе первый layout-проход пройдёт со значением по умолчанию. |
+| `InfoWindowController.mm`, `setInfoForTorrents:` | Принудительное обновление текущего view controller. |
+| `InfoActivityViewController.h`, `InfoOptionsViewController.h` | Новое свойство `embedded`. |
+| `InfoActivityViewController.mm`, `InfoOptionsViewController.mm`, `checkLayout` | Ширина берётся от собственного view, а не от окна: в split view инспектор уже окна. |
+| `InfoActivityViewController.mm`, `InfoOptionsViewController.mm`, `updateWindowLayout` | Во встроенном режиме окно не ресайзится. |
+| `InfoActivityViewController.mm`, `viewDidLayout` | Повторный `checkLayout` после того, как Auto Layout выдал реальную ширину. |
 
 ### 3. Последовательная загрузка
 
-- Сам режим уже реализован в базовом ядре: piece picker учитывает его в `peer-mgr-wishlist.cc`, значение сохраняется в resume-файл, RPC-поле `sequential-download` существует. В `libtransmission` добавлен только публичный C-доступ к нему (чтение и изменение), чтобы им мог пользоваться macOS-клиент.
-- В macOS-модели `Torrent` добавлено свойство `sequentialDownload`.
-- В настройках торрента добавлен флажок **Download pieces sequentially**.
-- Для нескольких выбранных торрентов добавлена команда меню с поддержкой смешанного состояния.
-- Команда включает режим для всех выбранных торрентов, если хотя бы у одного он выключен; иначе выключает у всех.
+Важно: сам режим уже реализован в апстримном ядре — piece picker учитывает его в
+`peer-mgr-wishlist.cc`, значение сохраняется в resume-файл, RPC-поле
+`sequential-download` существует. Мы только открыли к нему доступ.
 
-### 4. Защита операций удаления
+| Где | Что |
+| --- | --- |
+| `libtransmission/transmission.h`, рядом с `tr_torrentUseSessionLimits` | Объявления `tr_torrentIsSequentialDownload` и `tr_torrentSetSequentialDownload`. |
+| `libtransmission/torrent.cc`, рядом с `tr_torrentUsesSessionLimits` | Их реализация — обёртки над существующими методами `tr_torrent`. |
+| `macosx/Torrent.h`, `.mm` | Свойство `sequentialDownload`. |
+| `InfoOptionsViewController.mm`, `updateOptions`, `setSequentialDownload:`, `setupInfo` | Чекбокс со смешанным состоянием. |
+| `macosx/Base.lproj/InfoOptionsView.xib` | Чекбокс, outlet, action, четыре constraints; высота выросла на 20pt. |
+| `Controller.h`, `Controller.mm`, `toggleSequentialDownloadForSelectedTorrents:` | Команда для нескольких выбранных торрентов: включает всем, если хотя бы у одного выключено. |
+| `Controller.mm`, `validateMenuItem:` | Состояние пункта меню. |
+| `macosx/Base.lproj/MainMenu.xib` | Пункт контекстного меню с иконкой `list.number`. Объявлен в двух местах, см. грабли. |
 
-- Удаление торрентов, запущенное во время анимации списка, складывается в очередь до завершения анимации.
-- При завершении приложения очередь принудительно выполняется, чтобы удаление не терялось.
-- Если приложение закрывается до callback анимации, callback больше не выполняет повторное удаление.
+### 4. Защита от падений при работе со списком
 
-### 5. Защита обновления таблицы
+| Где | Что |
+| --- | --- |
+| `Controller.mm`, `confirmRemoveTorrents:deleteData:` | `closeRemoveTorrent:` откладывается до завершения анимации строк: `fTorrents` очищается сразу, а таблица ещё читает `Torrent` в animation callback. |
+| `Controller.mm`, `applicationShouldTerminate:` | Отложенные удаления принудительно выполняются при выходе. |
+| `Controller.mm`, `confirmRemoveTorrents:deleteData:` | Повторное удаление уже удалённого объекта отбрасывается через `indexOfObjectIdenticalTo:`. |
+| `TorrentTableView.mm`, `reloadDataForRowIndexes:columnIndexes:` | Набор индексов ограничивается текущим количеством строк. Это подстраховка, а не лечение причины: причина — `flushSelectionReload` через `afterDelay:0`, к моменту вызова индексы устарели. |
 
-- Перед `reloadDataForRowIndexes:` индексы ограничиваются текущим количеством строк.
-- Пустые и уже невалидные наборы индексов игнорируются.
-- Это предотвращает обновление строк, которые исчезли во время изменения списка торрентов.
+### 5. Настройки по умолчанию
 
-## Текущее состояние проверки
+| Где | Что |
+| --- | --- |
+| `macosx/Defaults.plist`, `InfoVisible` | `false` → `true`: встроенный инспектор — смысл этой компоновки. У существующих пользователей значение берётся из их профиля, новый дефолт увидят только новые. |
 
-Сборка проходит, приложение запускается, новая компоновка главного окна работает.
+## Проверка после переноса
 
-Исправлено по итогам код-ревью:
+Сборка:
 
-- Падение при запуске (`NSInvalidArgumentException: -[NSSegmentedCell setImagePosition:]`) вызывали добавленные в `InfoWindowController awakeFromNib` вызовы `setLabel:forSegment:` и `setImageScaling:forSegment:`. Оба убраны, метки сегментов и так заданы в xib.
-- Восстановлены удалённые файлы `dist/msi/*`: `CMakeLists.txt` по-прежнему делает `add_subdirectory(dist/msi)`, и без них ломалась конфигурация сборки под Windows.
-- Признак встроенного режима инспектора вынесен в явное свойство `embedded` вместо эвристики по `superview`/`contentViewController`, которая была истинной и для отдельного окна и ломала его resize.
-- Состояние инспектора в тулбаре и в настройке `InfoVisible` читается из `fInspectorSplitItem.collapsed`, а не из видимости старого окна. Сохранённое состояние применялось инвертированно: панель создавалась развёрнутой, а затем `showInfo:` при запуске её переключал.
-- Восстановлено локальное состояние подмодуля `third-party/wide-integer`.
+```sh
+cmake -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug -DENABLE_MAC=ON \
+    -DENABLE_QT=OFF -DENABLE_GTK=OFF -DENABLE_TESTS=OFF -DENABLE_CLI=OFF \
+    -DENABLE_DAEMON=OFF -DENABLE_UTILS=OFF
+cmake --build build -j 8
+open build/macosx/Transmission.app
+```
 
-Остаётся вне scope: неотслеживаемый `crash_log.txt` (устарел), хардкод строки `"Download Sequentially"` в `MainMenu.xib` без `NSLocalizedString`, а также отсутствие сохранения ширины и состояния боковой панели между запусками.
+Что смотреть глазами:
+
+1. Приложение запускается без исключений AppKit.
+2. Боковая панель: разделы Transfers и Tags, счётчики совпадают с содержимым списка, выбор фильтрует список.
+3. Кнопка боковой панели в тулбаре видна на **светлой** теме и подсвечивается при включении.
+4. Инспектор открыт при первом запуске и занимает высоту содержимого, а не всё окно.
+5. Переключение всех шести вкладок инспектора; Activity и Options меняют ориентацию по ширине панели, а не окна.
+6. Контекстное меню торрента: иконки есть у **всех** пунктов, включая Download Sequentially.
+7. Чекбокс Download pieces sequentially для одного и для нескольких торрентов, включая смешанное состояние.
+8. Удаление торрента сразу после другого удаления — без падения.
+9. Закрыть приложение с открытым и закрытым инспектором, проверить, что состояние восстанавливается (`defaults read org.m0k.transmission InfoVisible`).
+
+## Грабли
+
+1. **SF Symbol в `MainMenu.xib` объявляется дважды.** В самом `menuItem` через `secondaryImage="…" catalog="system"` и в блоке `<resources>` в конце файла. Если добавить только первое, иконки пропадают во **всём** меню, а не только у нового пункта. Размер в `<resources>` берётся из `NSImage(systemSymbolName:).size`.
+2. **`fTabs` в инспекторе — это `NSSegmentedControl`.** Вызовы `setLabel:forSegment:` и `setImageScaling:forSegment:` в `awakeFromNib` роняют запуск: AppKit уходит в `setImagePosition:` у `NSSegmentedCell`, которого там нет. Вкладки иконочные, подписи заданы в xib — ничего дополнительно ставить не нужно.
+3. **`dist/msi` удалять нельзя.** Корневой `CMakeLists.txt` делает `add_subdirectory(dist/msi)`, без этих файлов ломается конфигурация сборки под Windows.
+4. **pre-commit хук проверяет clang-format.** Перед коммитом `./code_style.sh`, иначе коммит отклоняется.
+5. **Gatekeeper и `Sparkle.framework`.** Если папку с исходниками принесли AirDrop'ом или скачали архивом, на файлах висит `com.apple.quarantine`. Сборка прописывает rpath прямо в дерево исходников и грузит фреймворк оттуда, поэтому при запуске появляется «Apple could not verify Sparkle.framework». Лечится `xattr -dr com.apple.quarantine .`; через `git clone` проблема не возникает.
+6. **`preferredThicknessFraction` не работает** для вложенного `NSSplitViewItem` при первичной раскладке — панель получает всю доступную высоту. Высоту надо задавать явно и после того, как у сплита появился фрейм.
+7. **Не определяйте встроенность по `superview`/`window.contentViewController`.** Такое условие истинно и для обычного окна, из-за чего отдельное окно инспектора перестаёт менять размер. Используйте явный флаг.
+8. **`showInfo:` — переключатель.** Не вызывайте его для применения сохранённого состояния, иначе состояние инвертируется.
+
+## Известные незакрытые места
+
+- `clampInspectorHeight` вызывается один раз через `dispatch_async` и молча выходит, если у сплита ещё нулевой фрейм. Надёжнее вызывать после `makeKeyAndOrderFront:`.
+- Обрезание индексов в `TorrentTableView.mm` маскирует причину, а не устраняет её.
+- Ширина и состояние раскрытия боковой панели между запусками не сохраняются.
+- Строка `Download Sequentially` в `MainMenu.xib` не заведена в локализации.
+- `fPendingTorrentRemovals` — словарь, а не очередь: порядок удалений не гарантирован. Для независимых торрентов это безопасно, но название вводит в заблуждение.
