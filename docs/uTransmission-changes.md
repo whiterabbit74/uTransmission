@@ -89,6 +89,22 @@ git rebase origin/main          # или origin/<нужный тег>
 | --- | --- |
 | `macosx/Defaults.plist`, `InfoVisible` | `false` → `true`: встроенный инспектор — смысл этой компоновки. У существующих пользователей значение берётся из их профиля, новый дефолт увидят только новые. |
 
+### 6. Название и иконка
+
+| Где | Что |
+| --- | --- |
+| `macosx/CMakeLists.txt`, `MAC_BUNDLE_NAME` | `Transmission` → `uTransmission`. Задаёт имя бандла, имя исполняемого файла и пути установки, включая оба QuickLook-таргета. |
+| `macosx/Info.plist.in`, `CFBundleName`, `CFBundleExecutable` | Литералы заменены на `@MAC_BUNDLE_NAME@`, чтобы имя жило в одном месте. `CFBundleExecutable` обязан совпадать с именем бинарника, которое даёт `OUTPUT_NAME`. |
+| `macosx/Base.lproj/MainMenu.xib` | Заголовок главного окна, меню приложения и пункты About / Hide / Quit, а также пункт главного окна в меню Window. |
+| `macosx/Images/Images.xcassets/AppIcon.appiconset/*.png` | Десять размеров иконки (16, 32, 128, 256, 512 в 1x и 2x), нарезаны из мастера 1024×1024 через `sips -Z`. `actool` собирает из них `AppIcon.icns` при сборке. |
+
+Что осталось нетронутым намеренно:
+
+- `CFBundleIdentifier` — по-прежнему `org.m0k.transmission`. Менять нельзя: к нему привязаны настройки и список торрентов, при смене пользователь теряет свой профиль.
+- `frameAutosaveName="TransmissionWindow"` в `MainMenu.xib` — это ключ в настройках, при переименовании потеряется сохранённая геометрия окна.
+- `CFBundleHelpBookFolder`, `CFBundleHelpBookName`, пункты Transmission Help и Transmission Homepage — указывают на справку и сайт апстрима, что для форка честно.
+- `macosx/Images/Transmission_Tahoe.icon` — новый формат Icon Composer, в CMake-сборке не используется. Если апстрим начнёт его подключать, иконку надо будет заменить и там.
+
 ## Проверка после переноса
 
 Сборка:
@@ -103,7 +119,7 @@ open build/macosx/Transmission.app
 
 Что смотреть глазами:
 
-1. Приложение запускается без исключений AppKit.
+1. Приложение запускается без исключений AppKit, называется `uTransmission.app`, в меню и в Dock — новая иконка.
 2. Боковая панель: разделы Transfers и Tags, счётчики совпадают с содержимым списка, выбор фильтрует список.
 3. Кнопка боковой панели в тулбаре видна на **светлой** теме и подсвечивается при включении.
 4. Инспектор открыт при первом запуске и занимает высоту содержимого, а не всё окно.

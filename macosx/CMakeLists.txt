@@ -6,7 +6,7 @@ endif()
 find_program(ACTOOL_EXECUTABLE actool REQUIRED)
 find_program(CODESIGN_EXECUTABLE codesign REQUIRED)
 
-set(MAC_BUNDLE_NAME Transmission)
+set(MAC_BUNDLE_NAME uTransmission)
 
 add_compile_options(
     $<$<COMPILE_LANGUAGE:C>:-fmodules>
